@@ -1,0 +1,14 @@
+# Version RECORD of the working Colab T4 setup (smoke test passed 2026-10-17).
+# Do NOT `pip install -r` this file. The install that actually works is cell 3 of
+# notebooks/00_colab_bootstrap.ipynb (Unsloth's Colab install, which pins transformers/trl/datasets).
+# torch, triton, xformers etc. are preinstalled by Colab and intentionally left out.
+unsloth==2026.10.6
+unsloth_zoo==2026.10.6
+transformers==4.57.6
+trl==0.22.2
+peft==0.21.1
+bitsandbytes==0.50.2
+torchao==0.18.0
+datasets==4.3.0
+wandb==0.28.1
+# Seen at the time: torch==2.11.0+cu130 (Colab preinstalled)

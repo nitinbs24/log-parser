@@ -1,0 +1,11 @@
+.venv/
+data/raw/
+data/processed/
+outputs/
+__pycache__/
+.pytest_cache/
+.ipynb_checkpoints/
+*.gguf
+*.safetensors
+.env
+wandb/

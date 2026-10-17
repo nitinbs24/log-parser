@@ -1,0 +1,22 @@
+# Laptop (CPU) dev env, Python 3.11. Install with:
+#   pip install --no-deps -r requirements-dev.txt
+# --no-deps is required: logparser3 pins regex==2022.3.2 (no 3.11 wheel); we use a newer regex on purpose.
+cloudpickle==3.1.2
+iniconfig==2.3.1
+joblib==1.6.0
+logparser3==1.0.4
+narwhals==2.27.1
+numpy==2.4.6
+packaging==26.3
+pandas==3.0.6
+pluggy==1.7.0
+Pygments==2.21.0
+pytest==9.1.1
+python-dateutil==2.9.0.post0
+PyYAML==6.0.3
+regex==2026.9.29
+scikit-learn==1.9.1
+scipy==1.17.1
+six==1.17.0
+threadpoolctl==3.7.0
+tqdm==4.70.1

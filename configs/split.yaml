@@ -1,0 +1,6 @@
+seed: 42
+heldout_systems: [OpenStack, Thunderbird, Mac, Proxifier]
+per_template_cap: 3
+template_disjoint_train_frac: 0.7
+max_tokens: 400
+val_lines: 200

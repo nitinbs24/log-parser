@@ -32,30 +32,32 @@ Top-10 templates:
 - 3 × `Started reading broadcast variable <*>`
 
 ## val
-200 lines, 12 templates, tokens p50/p95/max: 2/8/105
+59 lines, 41 templates, tokens p50/p95/max: 7/18/105
 
 | system | lines | templates |
 |---|---|---|
-| BGL | 129 | 1 |
-| HDFS | 1 | 1 |
-| HPC | 9 | 3 |
-| Hadoop | 4 | 3 |
-| HealthApp | 1 | 1 |
-| Linux | 1 | 1 |
-| Spark | 55 | 2 |
+| BGL | 12 | 8 |
+| HDFS | 3 | 1 |
+| HPC | 7 | 3 |
+| Hadoop | 11 | 8 |
+| HealthApp | 5 | 5 |
+| Linux | 8 | 8 |
+| OpenSSH | 2 | 2 |
+| Spark | 6 | 2 |
+| Zookeeper | 5 | 4 |
 
 Top-10 templates:
 
-- 129 × `generating core.<*>`
-- 49 × `Running task <*> in stage <*> (TID <*>)`
-- 6 × `Reading broadcast variable <*> took <*> ms`
-- 6 × `NIFF: node node-<*> has detected an available network connection on network <*> via interface alt0`
-- 2 × `ambient=<*>`
+- 3 × `generating core.<*>`
+- 3 × `Reading broadcast variable <*> took <*> ms`
+- 3 × `ciod: Error reading message prefix after LOAD_MESSAGE on CioStream socket to <*>:<*>: Link has been severed`
+- 3 × `Running task <*> in stage <*> (TID <*>)`
+- 3 × `<*> TaskAttempt Transitioned from ASSIGNED to RUNNING`
+- 3 × `ambient=<*>`
+- 3 × `NIFF: node node-<*> has detected an available network connection on network <*> via interface alt0`
+- 3 × `BLOCK* ask <*>:<*> to delete <*>`
+- 2 × `Notification time out: <*>`
 - 2 × `Diagnostics report from <*>: Error: java.net.NoRouteToHostException: No Route to Host from MININT-<*>/<*> to <*>:<*> failed on socket timeout exception: java.net.NoRouteToHostException: No route to host: no further information; For more details see: http://wiki.apache.org/hadoop/NoRouteToHost`
-- 1 × `<*> TaskAttempt Transitioned from ASSIGNED to RUNNING`
-- 1 × `BLOCK* ask <*>:<*> to delete <*>`
-- 1 × `Command has completed successfully`
-- 1 × `InsertCallBack() onSuccess type = <*> data=<*>`
 
 ## test_heldout
 4128 lines, 541 templates, tokens p50/p95/max: 10/18/123

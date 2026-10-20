@@ -25,6 +25,16 @@ def check_data_paths(cfg):
         assert "test" not in name, f"data.{key} must be a train/val file, got {name}"
 
 
+def render(tok, messages):
+    """Training text = the inference prompt + the answer + EOS.
+
+    The Qwen template renders a final assistant turn as "<think>\n\n</think>\n\n<answer>", but the generation prompt
+    never supplies that block, so the model would learn to open with it and clean() would return "<think>".
+    """
+    *prompt, answer = messages
+    return tok.apply_chat_template(prompt, tokenize=False, add_generation_prompt=True) + answer["content"] + tok.eos_token
+
+
 def val_pa(gen, rows):
     """Exact-match rate after clean() and post_process. `gen(msgs) -> raw outputs`; rows has system, content, gold."""
     msgs = [prompt_messages(s, c) for s, c in zip(rows.system, rows.content)]
@@ -42,14 +52,22 @@ def val_pa_callback(rows):
             tok = kw.get("processing_class") or kw.get("tokenizer")
             FastLanguageModel.for_inference(model)
             side, tok.padding_side = tok.padding_side, "left"
+            raw = []
+
+            def gen(msgs):
+                raw.extend(_generate_hf(model, tok, msgs))
+                return raw
+
             try:
-                pa = val_pa(lambda msgs: _generate_hf(model, tok, msgs), rows)
+                pa = val_pa(gen, rows)
             finally:
                 tok.padding_side = side
                 FastLanguageModel.for_training(model)
             # evaluate() returns this same dict, so the Trainer's best-model and early-stopping logic sees it
             metrics["eval_val_pa"] = pa
             print(f"step {state.global_step}: val_pa={pa:.3f}")
+            for r, g in list(zip(raw, rows.gold))[:3]:  # a look at what the model actually says
+                print(f"  raw={r!r} gold={g!r}")
             import wandb
             if wandb.run:  # the Trainer logged its eval metrics before this callback ran
                 wandb.log({"eval/val_pa": pa, "train/global_step": state.global_step})
@@ -85,12 +103,11 @@ def main():
     model.print_trainable_parameters()
 
     # Stage 2: data -> text. TRL treats a dataset with a "messages" column as conversational and would ignore
-    # "text", so drop it. It also appends EOS unless the text ends with it; Qwen's template ends "<|im_end|>\n".
+    # "text", so drop it. render() ends the text with EOS, so TRL does not append a second one.
     ds = load_dataset("json", data_files={"train": cfg["data"]["train"], "val": cfg["data"]["val"]})
     if cfg["data"].get("max_train_examples"):
         ds["train"] = ds["train"].select(range(cfg["data"]["max_train_examples"]))
-    ds = ds.map(lambda ex: {"text": tok.apply_chat_template(ex["messages"], tokenize=False).rstrip("\n")},
-                remove_columns=["messages"])
+    ds = ds.map(lambda ex: {"text": render(tok, ex["messages"])}, remove_columns=["messages"])
 
     # Stage 3: trainer with response-only loss
     trainer = SFTTrainer(
@@ -112,7 +129,8 @@ def main():
     labels = [x for x in trainer.train_dataset[0]["labels"] if x != -100]
     shown = tok.decode(labels)
     print("loss is computed on:", repr(shown))
-    assert shown.strip() and "<|im_start|>" not in shown, "loss mask is wrong: the prompt leaked into the labels"
+    assert shown.strip() and "<|im_start|>" not in shown and "<think>" not in shown, \
+        "loss mask is wrong: the prompt or a think block is in the labels"
 
     # Stage 5: resume if a checkpoint exists, then report
     out = Path(cfg["output_dir"])

@@ -23,3 +23,21 @@ def test_training_cannot_read_a_test_split():
     check_data_paths(ok)
     with pytest.raises(AssertionError):
         check_data_paths({"data": {"train": "data/processed/train.jsonl", "val": "data/processed/test_heldout.jsonl"}})
+
+
+def test_render_is_the_inference_prompt_plus_answer_and_eos():
+    from src.train import render
+
+    class Tok:
+        eos_token = "<|im_end|>"
+
+        def apply_chat_template(self, msgs, tokenize, add_generation_prompt=False):
+            out = "".join(f"<|im_start|>{m['role']}\n{m['content']}<|im_end|>\n" for m in msgs)
+            if add_generation_prompt:
+                out += "<|im_start|>assistant\n"
+            return out
+
+    msgs = [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}, {"role": "assistant", "content": "a <*>"}]
+    text = render(Tok(), msgs)
+    assert text == Tok().apply_chat_template(msgs[:-1], tokenize=False, add_generation_prompt=True) + "a <*><|im_end|>"
+    assert "<think>" not in text

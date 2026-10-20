@@ -13,3 +13,10 @@ base-baselines:
 	    python -m src.evaluate --pred results/$$1/$$s.csv --out results/$$1/$$s.json || exit 1; \
 	  done; \
 	done
+
+# usage: make finetuned-eval ADAPTER=outputs/runs/qwen3_4b_r16/best NAME=ft_r16
+finetuned-eval:
+	for s in test_heldout test_template_disjoint handcrafted; do \
+	  python -m src.predict --split $$s --backend unsloth --adapter $(ADAPTER) --out results/$(NAME)/$$s.csv && \
+	  python -m src.evaluate --pred results/$(NAME)/$$s.csv --out results/$(NAME)/$$s.json || exit 1; \
+	done

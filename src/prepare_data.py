@@ -86,6 +86,8 @@ def build_splits(df, cfg):
     mt = cfg["max_tokens"]
     train = train[train.content.map(n_tokens) <= mt]
     val = val[val.content.map(n_tokens) <= mt]
+    # cap lines per template like train: otherwise a few frequent templates dominate val_pa and checkpoint selection
+    val = val.sample(frac=1, random_state=cfg["seed"]).groupby(["system", "template"]).head(cfg["per_template_cap"])
     val = val.sample(min(len(val), cfg["val_lines"]), random_state=cfg["seed"])
 
     tests = {"test_heldout": test_heldout, "test_template_disjoint": test_td}

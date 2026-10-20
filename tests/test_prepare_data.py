@@ -36,3 +36,9 @@ def test_heldout_system_absent_from_train_and_val():
     for name in ("train", "val", "test_template_disjoint"):
         assert "H" not in set(splits[name].system)
     assert not set(splits["train"].template) & set(splits["val"].template)
+
+
+def test_val_lines_per_template_are_capped():
+    splits, _ = build_splits(fake_df(), CFG)
+    per_template = splits["val"].groupby(["system", "template"]).size()
+    assert len(per_template) and per_template.max() <= CFG["per_template_cap"]

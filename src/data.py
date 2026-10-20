@@ -1,5 +1,6 @@
 """Shared loaders for the evaluation splits."""
 import json
+import random
 from pathlib import Path
 
 import pandas as pd
@@ -21,3 +22,17 @@ def load_split(path):
         head, content = user["content"].split("\nLog: ", 1)
         rows.append((head.removeprefix("System: "), content, assistant["content"]))
     return pd.DataFrame(rows, columns=["system", "content", "gold"])
+
+
+def few_shot_examples(k=5, seed=42, train_path=Path("data/processed/train.jsonl")):
+    """k fixed (system, content, template) triples from k different training systems, each with a variable."""
+    train = load_split(train_path)
+    rng = random.Random(seed)
+    systems = sorted(train.system.unique())
+    rng.shuffle(systems)
+    out = []
+    for s in systems[:k]:
+        g = train[(train.system == s) & train.gold.str.contains("<*>", regex=False)]
+        r = g.iloc[rng.randrange(len(g))]
+        out.append((s, r.content, r.gold))
+    return out

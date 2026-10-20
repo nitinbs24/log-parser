@@ -10,11 +10,12 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from src.data import SPLITS, load_split
+from src.data import SPLITS, few_shot_examples, load_split
 from src.prompt import prompt_messages
 
 # ⚠ verify: the Ollama tag depends on what you pulled or imported.
-DEFAULT_MODELS = {"vllm": "Qwen/Qwen3-4B-Instruct-2507", "ollama": "qwen3:4b-instruct-2507"}
+DEFAULT_MODELS = {"vllm": "Qwen/Qwen3-4B-Instruct-2507", "ollama": "qwen3:4b-instruct-2507",
+                  "unsloth": "unsloth/Qwen3-4B-Instruct-2507-bnb-4bit"}
 OLLAMA_URL = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 
 
@@ -45,6 +46,29 @@ def _generate_vllm(msgs, model, adapter):
     return [o.outputs[0].text for o in outs]
 
 
+@functools.lru_cache(maxsize=2)
+def _unsloth_model(name):
+    from unsloth import FastLanguageModel  # imported lazily: needs CUDA, absent on the laptop
+    model, tok = FastLanguageModel.from_pretrained(name, max_seq_length=1024, load_in_4bit=True)
+    FastLanguageModel.for_inference(model)
+    tok.padding_side = "left"
+    return model, tok
+
+
+def _generate_unsloth(msgs, model, adapter, batch=32):
+    # ⚠ verify against the installed Unsloth. A saved LoRA adapter dir loads base + adapter in one call.
+    import torch
+    m, tok = _unsloth_model(adapter or model)
+    out = []
+    for i in range(0, len(msgs), batch):
+        texts = [tok.apply_chat_template(x, tokenize=False, add_generation_prompt=True) for x in msgs[i:i + batch]]
+        enc = tok(texts, return_tensors="pt", padding=True).to("cuda")
+        with torch.no_grad():
+            gen = m.generate(**enc, max_new_tokens=128, do_sample=False)
+        out += tok.batch_decode(gen[:, enc.input_ids.shape[1]:], skip_special_tokens=True)
+    return out
+
+
 def _generate_ollama(msgs, model, adapter):
     assert adapter is None, "Ollama serves a merged model; pass the GGUF as --model instead of --adapter"
 
@@ -58,21 +82,21 @@ def _generate_ollama(msgs, model, adapter):
         return list(pool.map(one, msgs))
 
 
-BACKENDS = {"vllm": _generate_vllm, "ollama": _generate_ollama}
+BACKENDS = {"vllm": _generate_vllm, "ollama": _generate_ollama, "unsloth": _generate_unsloth}
 
 
-def generate(lines, system=None, *, backend="vllm", model=None, adapter=None):
+def generate(lines, system=None, *, backend="vllm", model=None, adapter=None, examples=None):
     """Raw model outputs, one per line, before clean()."""
     if backend not in BACKENDS:
         raise ValueError(f"unknown backend {backend!r}")
-    msgs = [prompt_messages(system or "unknown", l) for l in lines]
+    msgs = [prompt_messages(system or "unknown", l, examples or ()) for l in lines]
     raw = BACKENDS[backend](msgs, model or DEFAULT_MODELS.get(backend), adapter)
     assert len(raw) == len(lines)
     return raw
 
 
-def parse_lines(lines, system=None, *, backend="vllm", model=None, adapter=None):
-    return [clean(r) for r in generate(lines, system, backend=backend, model=model, adapter=adapter)]
+def parse_lines(lines, system=None, *, backend="vllm", model=None, adapter=None, examples=None):
+    return [clean(r) for r in generate(lines, system, backend=backend, model=model, adapter=adapter, examples=examples)]
 
 
 def main():
@@ -82,15 +106,17 @@ def main():
     ap.add_argument("--backend", default="vllm", choices=BACKENDS)
     ap.add_argument("--model")
     ap.add_argument("--adapter")
+    ap.add_argument("--shots", type=int, default=0, help="few-shot examples from training systems (0 = zero-shot)")
     ap.add_argument("--limit", type=int, help="first N lines only, for smoke tests")
     args = ap.parse_args()
     df = load_split(SPLITS[args.split])
     if args.limit:
         df = df.head(args.limit)
+    examples = few_shot_examples(args.shots) if args.shots else None
     df["raw"] = ""
     for system, g in df.groupby("system"):
         df.loc[g.index, "raw"] = generate(g.content.tolist(), system,
-                                          backend=args.backend, model=args.model, adapter=args.adapter)
+                                          backend=args.backend, model=args.model, adapter=args.adapter, examples=examples)
     df["pred"] = df.raw.map(clean)
     changed = int((df.raw.str.strip() != df.pred).sum())
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)

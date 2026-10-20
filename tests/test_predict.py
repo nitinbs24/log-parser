@@ -64,3 +64,25 @@ def test_ollama_backend_request_and_response(monkeypatch):
     srv.shutdown()
     assert out == ["T:a 1", "T:b 2", "T:c 3"]
     assert seen[0]["stream"] is False and seen[0]["options"]["temperature"] == 0 and seen[0]["model"] == "m"
+
+
+def test_few_shot_turns_precede_the_query(stub):
+    seen = []
+    predict.BACKENDS["stub"] = lambda msgs, model, adapter: seen.extend(msgs) or _echo_log(msgs, model, adapter)
+    ex = [("A", "a 1", "a <*>"), ("B", "b 2", "b <*>")]
+    parse_lines(["x 9"], "C", backend="stub", examples=ex)
+    roles = [m["role"] for m in seen[0]]
+    assert roles == ["system", "user", "assistant", "user", "assistant", "user"]
+    assert seen[0][2]["content"] == "a <*>" and seen[0][-1]["content"].endswith("Log: x 9")
+
+
+def test_few_shot_examples_are_deterministic_and_from_distinct_systems(tmp_path):
+    from src.data import few_shot_examples
+    rows = [{"messages": [{"role": "system", "content": "s"},
+                          {"role": "user", "content": f"System: {s}\nLog: l{i} {s}"},
+                          {"role": "assistant", "content": f"l<*> {s}"}]} for s in "ABCDEF" for i in range(3)]
+    f = tmp_path / "train.jsonl"
+    f.write_text("\n".join(json.dumps(r) for r in rows))
+    a = few_shot_examples(4, train_path=f)
+    assert a == few_shot_examples(4, train_path=f)
+    assert len({e[0] for e in a}) == 4 and all("<*>" in e[2] for e in a)

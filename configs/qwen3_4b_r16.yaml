@@ -1,0 +1,28 @@
+run_name: qwen3_4b_r16
+model: unsloth/Qwen3-4B-Instruct-2507-bnb-4bit
+max_seq_length: 512
+load_in_4bit: true
+lora:
+  r: 16
+  alpha: 32          # 2x rank
+  dropout: 0.05      # Unsloth's fast path prefers 0; test both in the sweep
+  target_modules: [q_proj, v_proj]   # baseline; ablate vs all-linear in the sweep
+data:
+  train: data/processed/train.jsonl
+  val: data/processed/val.jsonl      # the sweep tunes on this only, never the held-out systems
+val_pa_lines: 200    # validation lines generated per eval step for the val_pa metric
+train:
+  lr: 2.0e-4
+  epochs: 3
+  per_device_batch_size: 8
+  grad_accum: 2
+  warmup_ratio: 0.05
+  scheduler: cosine
+  fp16: true         # T4 has no bfloat16
+  bf16: false
+  eval_steps: 20     # 594 examples / batch 16 = ~37 steps per epoch, ~111 total; the guide's 50 gives only 2 evals
+  save_steps: 20     # must be a multiple of eval_steps for load_best_model_at_end
+  early_stopping_patience: 3
+  seed: 42
+output_dir: outputs/runs/qwen3_4b_r16   # relative: outputs/ is the Drive symlink
+wandb_project: logparse

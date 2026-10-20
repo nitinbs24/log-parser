@@ -41,3 +41,12 @@ def test_render_is_the_inference_prompt_plus_answer_and_eos():
     text = render(Tok(), msgs)
     assert text == Tok().apply_chat_template(msgs[:-1], tokenize=False, add_generation_prompt=True) + "a <*><|im_end|>"
     assert "<think>" not in text
+
+
+def test_wandb_id_is_new_per_fresh_dir_and_reused_on_resume(tmp_path):
+    from src.train import persistent_run_id
+    ids = iter(["aaa", "bbb"])
+    d = tmp_path / "run"
+    assert persistent_run_id(d, lambda: next(ids)) == "aaa"
+    assert persistent_run_id(d, lambda: next(ids)) == "aaa"  # resume keeps the id
+    assert persistent_run_id(tmp_path / "other", lambda: next(ids)) == "bbb"

@@ -25,6 +25,18 @@ def check_data_paths(cfg):
         assert "test" not in name, f"data.{key} must be a train/val file, got {name}"
 
 
+def persistent_run_id(out, make_id):
+    """W&B run id stored beside the checkpoints: a resumed run reuses it, a fresh output dir gets a new one.
+
+    A fixed id (the run name) collides with any earlier run of the same name ("run ID ... is in use").
+    """
+    out.mkdir(parents=True, exist_ok=True)
+    f = out / "wandb_id.txt"
+    if not f.exists():
+        f.write_text(make_id())
+    return f.read_text().strip()
+
+
 def render(tok, messages):
     """Training text = the inference prompt + the answer + EOS.
 
@@ -92,7 +104,9 @@ def main():
     from trl import SFTConfig, SFTTrainer
 
     t0 = time.time()
-    wandb.init(project=cfg["wandb_project"], name=cfg["run_name"], id=cfg["run_name"], resume="allow", config=cfg)
+    out = Path(cfg["output_dir"])
+    wandb.init(project=cfg["wandb_project"], name=cfg["run_name"], config=cfg, resume="allow",
+               id=persistent_run_id(out, wandb.util.generate_id))
 
     # Stage 1: load and wrap
     model, tok = FastLanguageModel.from_pretrained(
@@ -133,8 +147,7 @@ def main():
         "loss mask is wrong: the prompt or a think block is in the labels"
 
     # Stage 5: resume if a checkpoint exists, then report
-    out = Path(cfg["output_dir"])
-    trainer.train(resume_from_checkpoint=get_last_checkpoint(out) if out.is_dir() else None)
+    trainer.train(resume_from_checkpoint=get_last_checkpoint(out))
 
     peak = torch.cuda.max_memory_allocated() / 2**30
     stats = {"peak_vram_gb": peak, "wall_time_min": (time.time() - t0) / 60,

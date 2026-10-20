@@ -55,10 +55,9 @@ def _unsloth_model(name):
     return model, tok
 
 
-def _generate_unsloth(msgs, model, adapter, batch=32):
-    # ⚠ verify against the installed Unsloth. A saved LoRA adapter dir loads base + adapter in one call.
+def _generate_hf(m, tok, msgs, batch=32):
+    """Greedy batched generation with an already-loaded Unsloth/HF model; also used by the val-PA callback in train.py."""
     import torch
-    m, tok = _unsloth_model(adapter or model)
     out = []
     for i in range(0, len(msgs), batch):
         texts = [tok.apply_chat_template(x, tokenize=False, add_generation_prompt=True) for x in msgs[i:i + batch]]
@@ -67,6 +66,12 @@ def _generate_unsloth(msgs, model, adapter, batch=32):
             gen = m.generate(**enc, max_new_tokens=128, do_sample=False)
         out += tok.batch_decode(gen[:, enc.input_ids.shape[1]:], skip_special_tokens=True)
     return out
+
+
+def _generate_unsloth(msgs, model, adapter):
+    # ⚠ verify against the installed Unsloth. A saved LoRA adapter dir loads base + adapter in one call.
+    m, tok = _unsloth_model(adapter or model)
+    return _generate_hf(m, tok, msgs)
 
 
 def _generate_ollama(msgs, model, adapter):

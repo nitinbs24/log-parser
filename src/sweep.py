@@ -48,16 +48,19 @@ def summary(runs_dir, order):
             hist = r["history"]
             best = hist.get(str(r["best_step"]), {})
             rows[name] = {"best": r["best_val_pa"], "step": r["best_step"], "macro": best.get("val_pa_macro"),
-                          "last": hist[str(max(map(int, hist)))]["val_pa"], "min": r["wall_time_min"],
+                          "last": hist[str(max(map(int, hist)))]["val_pa"], "loss": min(h["eval_loss"] for h in hist.values()),
+                          "min": r["wall_time_min"],
                           "vram": r["peak_vram_gb"], "by_system": best.get("by_system", {})}
     base = rows.get("default", {}).get("best")
     out = ["# Sweep (validation only; held-out systems untouched)", "",
            f"A validation line is worth about 1.7 points, so a gap under {NOISE:.3f} (two lines) is noise.", "",
-           "| run | best val_pa | vs default | best step | macro at best | last val_pa | min | peak GB |",
-           "|---|---|---|---|---|---|---|---|"]
+           "val_pa tops out near 0.93 here (the last wrong lines are label conventions), so runs that tie on val_pa are ranked by"
+           " the lower validation loss.", "",
+           "| run | best val_pa | vs default | best step | macro at best | last val_pa | min eval_loss | min | peak GB |",
+           "|---|---|---|---|---|---|---|---|---|"]
     for n, r in rows.items():
         d = "" if base is None or n == "default" else f"{r['best'] - base:+.3f}" + ("" if abs(r["best"] - base) >= NOISE else " (noise)")
-        out.append(f"| {n} | {r['best']:.3f} | {d} | {r['step']} | {r['macro']:.3f} | {r['last']:.3f} | {r['min']:.1f} | {r['vram']:.1f} |")
+        out.append(f"| {n} | {r['best']:.3f} | {d} | {r['step']} | {r['macro']:.3f} | {r['last']:.3f} | {r['loss']:.4f} | {r['min']:.1f} | {r['vram']:.1f} |")
     systems = sorted({s for r in rows.values() for s in r["by_system"]})
     out += ["", "## val_pa per system at the best step", "", "| run | " + " | ".join(systems) + " |", "|---|" + "---|" * len(systems)]
     for n, r in rows.items():

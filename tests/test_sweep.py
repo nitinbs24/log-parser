@@ -34,8 +34,8 @@ def _result(tmp, name, best, step, by_system):
     d.mkdir()
     (d / "result.json").write_text(json.dumps({
         "best_val_pa": best, "best_step": step, "wall_time_min": 7.0, "peak_vram_gb": 7.4,
-        "history": {str(step): {"val_pa": best, "val_pa_macro": best - 0.05, "by_system": by_system},
-                    "114": {"val_pa": best - 0.1, "val_pa_macro": 0.5, "by_system": by_system}}}))
+        "history": {str(step): {"val_pa": best, "val_pa_macro": best - 0.05, "by_system": by_system, "eval_loss": 0.05},
+                    "114": {"val_pa": best - 0.1, "val_pa_macro": 0.5, "by_system": by_system, "eval_loss": 0.04}}}))
 
 
 def test_summary_flags_noise_and_reports_per_system(tmp_path):
@@ -43,6 +43,6 @@ def test_summary_flags_noise_and_reports_per_system(tmp_path):
     _result(tmp_path, "r8", 0.917, 76, {"BGL": 1.0, "HDFS": 0.5})  # one line better: noise
     _result(tmp_path, "r32", 0.800, 57, {"BGL": 1.0, "HDFS": 0.2})
     text = summary(tmp_path, ["default", "r8", "r32", "missing"])
-    assert "| r8 | 0.917 | +0.017 (noise)" in text
+    assert "| r8 | 0.917 | +0.017 (noise)" in text and "| 0.0400 |" in text  # min eval_loss over the history
     assert "| r32 | 0.800 | -0.100 |" in text and "(noise)" not in text.split("| r32")[1].split("\n")[0]
     assert "| r32 | 1.00 | 0.20 |" in text and "missing" not in text

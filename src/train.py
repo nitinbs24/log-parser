@@ -84,7 +84,7 @@ def val_pa_callback(rows, history_path, system_line=True):
     from unsloth import FastLanguageModel
 
     class ValPA(TrainerCallback):
-        # step -> {"val_pa", "val_pa_macro", "by_system"}; kept on disk so a resumed run does not lose earlier evals
+        # step -> {"val_pa", "val_pa_macro", "by_system", "eval_loss"}; kept on disk so a resumed run does not lose earlier evals
         history = json.loads(history_path.read_text()) if history_path.exists() else {}
 
         def on_evaluate(self, args, state, control, model=None, metrics=None, **kw):
@@ -106,7 +106,8 @@ def val_pa_callback(rows, history_path, system_line=True):
             pa, macro = sum(ok) / len(ok), sum(by_system.values()) / len(by_system)
             # evaluate() returns this same dict, so the Trainer's best-model and early-stopping logic sees it
             metrics["eval_val_pa"], metrics["eval_val_pa_macro"] = pa, macro
-            self.history[str(state.global_step)] = {"val_pa": pa, "val_pa_macro": macro, "by_system": by_system}
+            self.history[str(state.global_step)] = {"val_pa": pa, "val_pa_macro": macro, "by_system": by_system,
+                                                    "eval_loss": metrics.get("eval_loss")}
             history_path.write_text(json.dumps(self.history, indent=2))
             print(f"step {state.global_step}: val_pa={pa:.3f} macro={macro:.3f} "
                   + " ".join(f"{k}={v:.2f}" for k, v in sorted(by_system.items())))

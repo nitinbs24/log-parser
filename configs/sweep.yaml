@@ -1,0 +1,16 @@
+# One axis at a time from the default (walkthrough Step 4.4). Generate the per-run configs with:
+#   python -m src.sweep write
+base: configs/qwen3_4b_r16.yaml
+common:   # same evaluation schedule for every run, including the default re-run
+  train.eval_steps: 19   # 38 steps per epoch, so 19 divides the totals for 1, 3 and 5 epochs: the final weights are always evaluated
+  train.save_steps: 19
+runs:
+  default: {}
+  r8: {lora.r: 8, lora.alpha: 16}         # alpha stays 2x rank
+  r32: {lora.r: 32, lora.alpha: 64}
+  lr1e-4: {train.lr: 1.0e-4}
+  lr5e-4: {train.lr: 5.0e-4}
+  ep1: {train.epochs: 1}
+  ep5: {train.epochs: 5}
+  all_linear: {lora.target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]}
+  no_system: {system_line: false}         # drop the "System: X" line from the prompt

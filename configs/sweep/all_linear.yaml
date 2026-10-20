@@ -1,0 +1,37 @@
+run_name: sweep_all_linear
+model: unsloth/Qwen3-4B-Instruct-2507-bnb-4bit
+max_seq_length: 512
+load_in_4bit: true
+system_line: true
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
+data:
+  train: data/processed/train.jsonl
+  val: data/processed/val.jsonl
+val_pa_lines: 200
+train:
+  lr: 0.0002
+  epochs: 3
+  per_device_batch_size: 8
+  grad_accum: 2
+  warmup_ratio: 0.05
+  scheduler: cosine
+  optim: adamw_8bit
+  fp16: true
+  bf16: false
+  eval_steps: 19
+  save_steps: 19
+  early_stopping_patience: 3
+  seed: 42
+output_dir: outputs/runs/sweep_all_linear
+wandb_project: logparse

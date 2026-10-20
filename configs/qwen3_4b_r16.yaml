@@ -18,6 +18,7 @@ train:
   grad_accum: 2
   warmup_ratio: 0.05
   scheduler: cosine
+  optim: adamw_8bit
   fp16: true         # T4 has no bfloat16
   bf16: false
   eval_steps: 20     # 594 examples / batch 16 = ~37 steps per epoch, ~111 total; the guide's 50 gives only 2 evals

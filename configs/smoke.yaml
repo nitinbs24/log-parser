@@ -1,0 +1,31 @@
+run_name: smoke
+model: unsloth/Qwen3-4B-Instruct-2507-bnb-4bit
+max_seq_length: 512
+load_in_4bit: true
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules: [q_proj, v_proj]
+data:
+  train: data/processed/train.jsonl
+  val: data/processed/val.jsonl
+  max_train_examples: 100
+val_pa_lines: 20
+train:
+  lr: 2.0e-4
+  epochs: 1
+  max_steps: 20      # smoke run: 20 steps on 100 examples
+  per_device_batch_size: 8
+  grad_accum: 2
+  warmup_ratio: 0.05
+  scheduler: cosine
+  optim: adamw_8bit
+  fp16: true
+  bf16: false
+  eval_steps: 10     # two evals, so val_pa and best-checkpoint logic both run
+  save_steps: 10     # a checkpoint to kill-and-resume from
+  early_stopping_patience: 3
+  seed: 42
+output_dir: outputs/runs/smoke
+wandb_project: logparse

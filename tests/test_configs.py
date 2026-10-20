@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-CONFIGS = sorted(Path("configs").glob("qwen3*.yaml"))
+CONFIGS = [p for p in sorted(Path("configs").glob("*.yaml")) if p.name != "split.yaml"]
 
 
 @pytest.mark.parametrize("path", CONFIGS, ids=lambda p: p.name)

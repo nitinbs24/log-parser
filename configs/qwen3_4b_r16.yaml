@@ -2,6 +2,7 @@ run_name: qwen3_4b_r16
 model: unsloth/Qwen3-4B-Instruct-2507-bnb-4bit
 max_seq_length: 512
 load_in_4bit: true
+system_line: true   # false drops the "System: X" line from the prompt (sweep axis); predict.py must match
 lora:
   r: 16
   alpha: 32          # 2x rank

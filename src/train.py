@@ -3,6 +3,7 @@
 Usage: python -m src.train --config configs/qwen3_4b_r16.yaml
 """
 import argparse
+import json
 import time
 from pathlib import Path
 
@@ -47,28 +48,45 @@ def render(tok, messages):
     return tok.apply_chat_template(prompt, tokenize=False, add_generation_prompt=True) + answer["content"] + tok.eos_token
 
 
-def fitting_rows(tok, rows, max_len):
+def without_system_line(messages):
+    """Training messages with the 'System: X' line dropped from the user turn (the system_line=False prompt)."""
+    out = [dict(m) for m in messages]
+    user = next(m for m in out if m["role"] == "user")
+    user["content"] = user["content"].split("\n", 1)[1]
+    return out
+
+
+def fitting_rows(tok, rows, max_len, system_line=True):
     """Rows whose prompt + answer fit in max_len tokens, i.e. the ones the trainer keeps; one very long line
     padded into a generation batch otherwise runs the GPU out of memory."""
-    fits = [len(tok(render(tok, [*prompt_messages(s, c), {"role": "assistant", "content": g}]))["input_ids"]) <= max_len
+    fits = [len(tok(render(tok, [*prompt_messages(s, c, system_line=system_line),
+                                 {"role": "assistant", "content": g}]))["input_ids"]) <= max_len
             for s, c, g in zip(rows.system, rows.content, rows.gold)]
     print(f"val_pa uses {sum(fits)} of {len(fits)} lines (the rest exceed max_seq_length)")
     return rows[fits]
 
 
-def val_pa(gen, rows):
-    """Exact-match rate after clean() and post_process. `gen(msgs) -> raw outputs`; rows has system, content, gold."""
-    msgs = [prompt_messages(s, c) for s, c in zip(rows.system, rows.content)]
+def val_correct(gen, rows, system_line=True):
+    """Per-line exact match after clean() and post_process. `gen(msgs) -> raw outputs`; rows has system, content, gold."""
+    msgs = [prompt_messages(s, c, system_line=system_line) for s, c in zip(rows.system, rows.content)]
     raw = gen(msgs)
     assert len(raw) == len(rows)
-    return sum(post_process(clean(r)) == post_process(g) for r, g in zip(raw, rows.gold)) / len(rows)
+    return [post_process(clean(r)) == post_process(g) for r, g in zip(raw, rows.gold)]
 
 
-def val_pa_callback(rows):
+def val_pa(gen, rows, system_line=True):
+    ok = val_correct(gen, rows, system_line)
+    return sum(ok) / len(ok)
+
+
+def val_pa_callback(rows, history_path, system_line=True):
     from transformers import TrainerCallback
     from unsloth import FastLanguageModel
 
     class ValPA(TrainerCallback):
+        # step -> {"val_pa", "val_pa_macro", "by_system"}; kept on disk so a resumed run does not lose earlier evals
+        history = json.loads(history_path.read_text()) if history_path.exists() else {}
+
         def on_evaluate(self, args, state, control, model=None, metrics=None, **kw):
             tok = kw.get("processing_class") or kw.get("tokenizer")
             FastLanguageModel.for_inference(model)
@@ -80,18 +98,24 @@ def val_pa_callback(rows):
                 return raw
 
             try:
-                pa = val_pa(gen, rows)
+                ok = val_correct(gen, rows, system_line)
             finally:
                 tok.padding_side = side
                 FastLanguageModel.for_training(model)
+            by_system = rows.assign(ok=ok).groupby("system").ok.mean().to_dict()
+            pa, macro = sum(ok) / len(ok), sum(by_system.values()) / len(by_system)
             # evaluate() returns this same dict, so the Trainer's best-model and early-stopping logic sees it
-            metrics["eval_val_pa"] = pa
-            print(f"step {state.global_step}: val_pa={pa:.3f}")
-            for r, g in list(zip(raw, rows.gold))[:3]:  # a look at what the model actually says
-                print(f"  raw={r!r} gold={g!r}")
+            metrics["eval_val_pa"], metrics["eval_val_pa_macro"] = pa, macro
+            self.history[str(state.global_step)] = {"val_pa": pa, "val_pa_macro": macro, "by_system": by_system}
+            history_path.write_text(json.dumps(self.history, indent=2))
+            print(f"step {state.global_step}: val_pa={pa:.3f} macro={macro:.3f} "
+                  + " ".join(f"{k}={v:.2f}" for k, v in sorted(by_system.items())))
+            for r, g in [(r, g) for r, g, o in zip(raw, rows.gold, ok) if not o][:3]:  # what the model gets wrong
+                print(f"  wrong: raw={r!r} gold={g!r}")
             import wandb
             if wandb.run:  # the Trainer logged its eval metrics before this callback ran
-                wandb.log({"eval/val_pa": pa, "train/global_step": state.global_step})
+                wandb.log({"eval/val_pa": pa, "eval/val_pa_macro": macro, "train/global_step": state.global_step,
+                           **{f"eval/val_pa_sys/{k}": v for k, v in by_system.items()}})
 
     return ValPA()
 
@@ -131,14 +155,18 @@ def main():
         ds = load_dataset("json", data_files={"train": cfg["data"]["train"], "val": cfg["data"]["val"]})
         if cfg["data"].get("max_train_examples"):
             ds["train"] = ds["train"].select(range(cfg["data"]["max_train_examples"]))
-        ds = ds.map(lambda ex: {"text": render(tok, ex["messages"])}, remove_columns=["messages"])
+        system_line = cfg.get("system_line", True)
+        ds = ds.map(lambda ex: {"text": render(tok, ex["messages"] if system_line else without_system_line(ex["messages"]))},
+                    remove_columns=["messages"])
 
         # Stage 3: trainer with response-only loss
         trainer = SFTTrainer(
             model=model, processing_class=tok, train_dataset=ds["train"], eval_dataset=ds["val"],
             # Stage 4: val_pa must run before EarlyStopping so the metric is in the dict it reads
-            callbacks=[val_pa_callback(fitting_rows(tok, load_split(Path(cfg["data"]["val"])).head(cfg["val_pa_lines"]),
-                                                cfg["max_seq_length"])),
+            callbacks=[val_pa_callback(
+                fitting_rows(tok, load_split(Path(cfg["data"]["val"])).head(cfg["val_pa_lines"]),
+                             cfg["max_seq_length"], system_line),
+                out / "val_history.json", system_line),
                        EarlyStoppingCallback(early_stopping_patience=t["early_stopping_patience"])],
             args=SFTConfig(
                 output_dir=cfg["output_dir"], run_name=cfg["run_name"], report_to="wandb", seed=t["seed"],
@@ -165,6 +193,11 @@ def main():
                  "best_val_pa": trainer.state.best_metric, "best_checkpoint": trainer.state.best_model_checkpoint}
         wandb.summary.update(stats)
         print(stats)
+        best = trainer.state.best_model_checkpoint
+        (out / "result.json").write_text(json.dumps({
+            "run_name": cfg["run_name"], "config": cfg, **stats,
+            "best_step": int(best.rsplit("-", 1)[1]) if best else None,
+            "history": json.loads((out / "val_history.json").read_text())}, indent=2))
         model.save_pretrained(out / "best")
         tok.save_pretrained(out / "best")
     finally:

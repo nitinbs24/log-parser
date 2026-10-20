@@ -67,3 +67,20 @@ def test_fitting_rows_drops_lines_longer_than_the_limit():
     rows = pd.DataFrame({"system": ["A", "B"], "content": ["short", "x" * 500], "gold": ["t", "t"]})
     kept = fitting_rows(Tok(), rows, max_len=300)
     assert list(kept.system) == ["A"]
+
+
+def test_without_system_line_matches_the_prompt_builder():
+    from src.prompt import prompt_messages, to_example
+    from src.train import without_system_line
+    full = to_example("Redis", "ready", "ready")["messages"]
+    want = prompt_messages("Redis", "ready", system_line=False) + [{"role": "assistant", "content": "ready"}]
+    assert without_system_line(full) == want
+    assert full[1]["content"].startswith("System: Redis")  # the input is not modified
+
+
+def test_val_correct_reports_each_line_and_respects_system_line():
+    from src.train import val_correct
+    seen = []
+    ok = val_correct(lambda msgs: seen.extend(msgs) or ["a <*>", "wrong", "c <*>"], ROWS, system_line=False)
+    assert ok == [True, False, True]
+    assert seen[0][-1]["content"] == "Log: a 1"

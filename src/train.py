@@ -108,54 +108,58 @@ def main():
     wandb.init(project=cfg["wandb_project"], name=cfg["run_name"], config=cfg, resume="allow",
                id=persistent_run_id(out, wandb.util.generate_id))
 
-    # Stage 1: load and wrap
-    model, tok = FastLanguageModel.from_pretrained(
-        cfg["model"], max_seq_length=cfg["max_seq_length"], load_in_4bit=cfg["load_in_4bit"])
-    model = FastLanguageModel.get_peft_model(
-        model, r=lo["r"], lora_alpha=lo["alpha"], lora_dropout=lo["dropout"], target_modules=lo["target_modules"],
-        bias="none", use_gradient_checkpointing="unsloth", random_state=t["seed"])
-    model.print_trainable_parameters()
+    try:
+        # Stage 1: load and wrap
+        model, tok = FastLanguageModel.from_pretrained(
+            cfg["model"], max_seq_length=cfg["max_seq_length"], load_in_4bit=cfg["load_in_4bit"])
+        model = FastLanguageModel.get_peft_model(
+            model, r=lo["r"], lora_alpha=lo["alpha"], lora_dropout=lo["dropout"], target_modules=lo["target_modules"],
+            bias="none", use_gradient_checkpointing="unsloth", random_state=t["seed"])
+        model.print_trainable_parameters()
 
-    # Stage 2: data -> text. TRL treats a dataset with a "messages" column as conversational and would ignore
-    # "text", so drop it. render() ends the text with EOS, so TRL does not append a second one.
-    ds = load_dataset("json", data_files={"train": cfg["data"]["train"], "val": cfg["data"]["val"]})
-    if cfg["data"].get("max_train_examples"):
-        ds["train"] = ds["train"].select(range(cfg["data"]["max_train_examples"]))
-    ds = ds.map(lambda ex: {"text": render(tok, ex["messages"])}, remove_columns=["messages"])
+        # Stage 2: data -> text. TRL treats a dataset with a "messages" column as conversational and would ignore
+        # "text", so drop it. render() ends the text with EOS, so TRL does not append a second one.
+        ds = load_dataset("json", data_files={"train": cfg["data"]["train"], "val": cfg["data"]["val"]})
+        if cfg["data"].get("max_train_examples"):
+            ds["train"] = ds["train"].select(range(cfg["data"]["max_train_examples"]))
+        ds = ds.map(lambda ex: {"text": render(tok, ex["messages"])}, remove_columns=["messages"])
 
-    # Stage 3: trainer with response-only loss
-    trainer = SFTTrainer(
-        model=model, processing_class=tok, train_dataset=ds["train"], eval_dataset=ds["val"],
-        # Stage 4: val_pa must run before EarlyStopping so the metric is in the dict it reads
-        callbacks=[val_pa_callback(load_split(Path(cfg["data"]["val"])).head(cfg["val_pa_lines"])),
-                   EarlyStoppingCallback(early_stopping_patience=t["early_stopping_patience"])],
-        args=SFTConfig(
-            output_dir=cfg["output_dir"], run_name=cfg["run_name"], report_to="wandb", seed=t["seed"],
-            per_device_train_batch_size=t["per_device_batch_size"], per_device_eval_batch_size=t["per_device_batch_size"],
-            gradient_accumulation_steps=t["grad_accum"], learning_rate=t["lr"], num_train_epochs=t["epochs"],
-            max_steps=t.get("max_steps", -1), warmup_ratio=t["warmup_ratio"], lr_scheduler_type=t["scheduler"],
-            optim=t["optim"], fp16=t["fp16"], bf16=t["bf16"], logging_steps=5,
-            eval_strategy="steps", eval_steps=t["eval_steps"], save_strategy="steps", save_steps=t["save_steps"],
-            save_total_limit=3, load_best_model_at_end=True, metric_for_best_model="val_pa", greater_is_better=True,
-            dataset_text_field="text", max_length=cfg["max_seq_length"], packing=False))
-    trainer = train_on_responses_only(trainer, instruction_part=INSTRUCTION_PART, response_part=RESPONSE_PART)
+        # Stage 3: trainer with response-only loss
+        trainer = SFTTrainer(
+            model=model, processing_class=tok, train_dataset=ds["train"], eval_dataset=ds["val"],
+            # Stage 4: val_pa must run before EarlyStopping so the metric is in the dict it reads
+            callbacks=[val_pa_callback(load_split(Path(cfg["data"]["val"])).head(cfg["val_pa_lines"])),
+                       EarlyStoppingCallback(early_stopping_patience=t["early_stopping_patience"])],
+            args=SFTConfig(
+                output_dir=cfg["output_dir"], run_name=cfg["run_name"], report_to="wandb", seed=t["seed"],
+                per_device_train_batch_size=t["per_device_batch_size"], per_device_eval_batch_size=t["per_device_batch_size"],
+                gradient_accumulation_steps=t["grad_accum"], learning_rate=t["lr"], num_train_epochs=t["epochs"],
+                max_steps=t.get("max_steps", -1), warmup_ratio=t["warmup_ratio"], lr_scheduler_type=t["scheduler"],
+                optim=t["optim"], fp16=t["fp16"], bf16=t["bf16"], logging_steps=5,
+                eval_strategy="steps", eval_steps=t["eval_steps"], save_strategy="steps", save_steps=t["save_steps"],
+                save_total_limit=3, load_best_model_at_end=True, metric_for_best_model="val_pa", greater_is_better=True,
+                dataset_text_field="text", max_length=cfg["max_seq_length"], packing=False))
+        trainer = train_on_responses_only(trainer, instruction_part=INSTRUCTION_PART, response_part=RESPONSE_PART)
 
-    labels = [x for x in trainer.train_dataset[0]["labels"] if x != -100]
-    shown = tok.decode(labels)
-    print("loss is computed on:", repr(shown))
-    assert shown.strip() and "<|im_start|>" not in shown and "<think>" not in shown, \
-        "loss mask is wrong: the prompt or a think block is in the labels"
+        labels = [x for x in trainer.train_dataset[0]["labels"] if x != -100]
+        shown = tok.decode(labels)
+        print("loss is computed on:", repr(shown))
+        assert shown.strip() and "<|im_start|>" not in shown and "<think>" not in shown, \
+            "loss mask is wrong: the prompt or a think block is in the labels"
 
-    # Stage 5: resume if a checkpoint exists, then report
-    trainer.train(resume_from_checkpoint=get_last_checkpoint(out))
+        # Stage 5: resume if a checkpoint exists, then report
+        trainer.train(resume_from_checkpoint=get_last_checkpoint(out))
 
-    peak = torch.cuda.max_memory_allocated() / 2**30
-    stats = {"peak_vram_gb": peak, "wall_time_min": (time.time() - t0) / 60,
-             "best_val_pa": trainer.state.best_metric, "best_checkpoint": trainer.state.best_model_checkpoint}
-    wandb.summary.update(stats)
-    print(stats)
-    model.save_pretrained(out / "best")
-    tok.save_pretrained(out / "best")
+        peak = torch.cuda.max_memory_allocated() / 2**30
+        stats = {"peak_vram_gb": peak, "wall_time_min": (time.time() - t0) / 60,
+                 "best_val_pa": trainer.state.best_metric, "best_checkpoint": trainer.state.best_model_checkpoint}
+        wandb.summary.update(stats)
+        print(stats)
+        model.save_pretrained(out / "best")
+        tok.save_pretrained(out / "best")
+    finally:
+        # a run left open keeps its id "in use" in Colab's shared wandb service, so a rerun or resume would fail
+        wandb.finish()
 
 
 if __name__ == "__main__":

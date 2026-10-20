@@ -47,6 +47,15 @@ def render(tok, messages):
     return tok.apply_chat_template(prompt, tokenize=False, add_generation_prompt=True) + answer["content"] + tok.eos_token
 
 
+def fitting_rows(tok, rows, max_len):
+    """Rows whose prompt + answer fit in max_len tokens, i.e. the ones the trainer keeps; one very long line
+    padded into a generation batch otherwise runs the GPU out of memory."""
+    fits = [len(tok(render(tok, [*prompt_messages(s, c), {"role": "assistant", "content": g}]))["input_ids"]) <= max_len
+            for s, c, g in zip(rows.system, rows.content, rows.gold)]
+    print(f"val_pa uses {sum(fits)} of {len(fits)} lines (the rest exceed max_seq_length)")
+    return rows[fits]
+
+
 def val_pa(gen, rows):
     """Exact-match rate after clean() and post_process. `gen(msgs) -> raw outputs`; rows has system, content, gold."""
     msgs = [prompt_messages(s, c) for s, c in zip(rows.system, rows.content)]
@@ -128,7 +137,8 @@ def main():
         trainer = SFTTrainer(
             model=model, processing_class=tok, train_dataset=ds["train"], eval_dataset=ds["val"],
             # Stage 4: val_pa must run before EarlyStopping so the metric is in the dict it reads
-            callbacks=[val_pa_callback(load_split(Path(cfg["data"]["val"])).head(cfg["val_pa_lines"])),
+            callbacks=[val_pa_callback(fitting_rows(tok, load_split(Path(cfg["data"]["val"])).head(cfg["val_pa_lines"]),
+                                                cfg["max_seq_length"])),
                        EarlyStoppingCallback(early_stopping_patience=t["early_stopping_patience"])],
             args=SFTConfig(
                 output_dir=cfg["output_dir"], run_name=cfg["run_name"], report_to="wandb", seed=t["seed"],

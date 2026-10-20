@@ -50,3 +50,20 @@ def test_wandb_id_is_new_per_fresh_dir_and_reused_on_resume(tmp_path):
     assert persistent_run_id(d, lambda: next(ids)) == "aaa"
     assert persistent_run_id(d, lambda: next(ids)) == "aaa"  # resume keeps the id
     assert persistent_run_id(tmp_path / "other", lambda: next(ids)) == "bbb"
+
+
+def test_fitting_rows_drops_lines_longer_than_the_limit():
+    from src.train import fitting_rows
+
+    class Tok:  # one "token" per character
+        eos_token = "|"
+
+        def apply_chat_template(self, msgs, tokenize, add_generation_prompt=False):
+            return "".join(m["content"] for m in msgs) + ("A" if add_generation_prompt else "")
+
+        def __call__(self, text):
+            return {"input_ids": list(text)}
+
+    rows = pd.DataFrame({"system": ["A", "B"], "content": ["short", "x" * 500], "gold": ["t", "t"]})
+    kept = fitting_rows(Tok(), rows, max_len=300)
+    assert list(kept.system) == ["A"]

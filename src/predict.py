@@ -65,6 +65,8 @@ def _generate_hf(m, tok, msgs, batch=32):
         with torch.no_grad():
             gen = m.generate(**enc, max_new_tokens=128, do_sample=False)
         out += tok.batch_decode(gen[:, enc.input_ids.shape[1]:], skip_special_tokens=True)
+        if len(msgs) > 10 * batch and (i // batch) % 10 == 9:  # long runs only, so the train callback stays quiet
+            print(f"generated {len(out)}/{len(msgs)}", flush=True)
     return out
 
 

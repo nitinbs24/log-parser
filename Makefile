@@ -16,7 +16,8 @@ base-baselines:
 
 # usage: make finetuned-eval ADAPTER=outputs/runs/qwen3_4b_r16/best NAME=ft_r16
 finetuned-eval:
-	for s in test_heldout test_template_disjoint handcrafted; do \
+	for s in handcrafted test_template_disjoint test_heldout; do \
+	  [ -f results/$(NAME)/$$s.json ] && { echo "skip $$s: already scored"; continue; }; \
 	  python -m src.predict --split $$s --backend unsloth --adapter $(ADAPTER) --out results/$(NAME)/$$s.csv && \
 	  python -m src.evaluate --pred results/$(NAME)/$$s.csv --out results/$(NAME)/$$s.json || exit 1; \
 	done

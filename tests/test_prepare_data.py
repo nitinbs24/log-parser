@@ -42,3 +42,12 @@ def test_val_lines_per_template_are_capped():
     splits, _ = build_splits(fake_df(), CFG)
     per_template = splits["val"].groupby(["system", "template"]).size()
     assert len(per_template) and per_template.max() <= CFG["per_template_cap"]
+
+
+def test_train_cap_raises_train_only():
+    small, _ = build_splits(fake_df(), CFG)
+    big, _ = build_splits(fake_df(), {**CFG, "train_cap": 5})
+    assert big["train"].groupby(["system", "template"]).size().max() == 5
+    assert set(small["train"].content) < set(big["train"].content)  # cap-3 lines are a subset
+    for name in ("val", "test_heldout", "test_template_disjoint"):
+        assert big[name].equals(small[name])

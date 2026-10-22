@@ -1,6 +1,6 @@
 .venv/
 data/raw/
-data/processed/
+data/processed*/
 outputs/
 __pycache__/
 .pytest_cache/

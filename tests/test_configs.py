@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-CONFIGS = [p for p in sorted(Path("configs").rglob("*.yaml")) if p.name not in ("split.yaml", "sweep.yaml")]
+CONFIGS = [p for p in sorted(Path("configs").rglob("*.yaml")) if not p.name.startswith(("split", "sweep."))]
 
 
 @pytest.mark.parametrize("path", CONFIGS, ids=lambda p: p.name)

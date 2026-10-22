@@ -82,7 +82,9 @@ def build_splits(df, cfg):
     dropped_shared = int(train.template.isin(forbidden).sum())
     train = train[~train.template.isin(forbidden)]
 
-    train = train.sample(frac=1, random_state=cfg["seed"]).groupby(["system", "template"]).head(cfg["per_template_cap"])
+    # train_cap (optional) raises the train cap only, so val stays comparable across data-size runs
+    train_cap = cfg.get("train_cap", cfg["per_template_cap"])
+    train = train.sample(frac=1, random_state=cfg["seed"]).groupby(["system", "template"]).head(train_cap)
     mt = cfg["max_tokens"]
     train = train[train.content.map(n_tokens) <= mt]
     val = val[val.content.map(n_tokens) <= mt]
@@ -125,11 +127,13 @@ def main():
     df = pd.concat([load_system(s) for s in systems])
     df["template"] = df.template.map(normalize)
     splits, dropped_shared = build_splits(dedupe(df), cfg)
-    OUT.mkdir(parents=True, exist_ok=True)
-    REPORT.parent.mkdir(parents=True, exist_ok=True)
+    out = Path(cfg.get("out_dir", OUT))
+    report = REPORT if out == OUT else out / "data_card.md"
+    out.mkdir(parents=True, exist_ok=True)
+    report.parent.mkdir(parents=True, exist_ok=True)
     for name, part in splits.items():
-        write_jsonl(part, OUT / f"{name}.jsonl")
-    REPORT.write_text(data_card(splits, dropped_shared))
+        write_jsonl(part, out / f"{name}.jsonl")
+    report.write_text(data_card(splits, dropped_shared))
     print({k: len(v) for k, v in splits.items()}, "dropped_shared:", dropped_shared)
 
 

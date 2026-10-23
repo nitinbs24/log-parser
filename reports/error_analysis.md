@@ -5,23 +5,23 @@
 
 ### PA per system (line-level, not the macro average)
 
-| system | drain | base_zeroshot | base_fewshot | ft_r16 |
-|---|---|---|---|---|
-| Mac | 0.147 | 0.124 | 0.177 | 0.363 |
-| OpenStack | 0.006 | 0.32 | 0.325 | 0.354 |
-| Proxifier | 0.0 | 0.045 | 0.084 | 0.106 |
-| Thunderbird | 0.313 | 0.006 | 0.401 | 0.519 |
+| system | drain | base_zeroshot | base_fewshot | ft_r16 | ft_r16_cap10 |
+|---|---|---|---|---|---|
+| Mac | 0.147 | 0.124 | 0.177 | 0.363 | 0.382 |
+| OpenStack | 0.006 | 0.32 | 0.325 | 0.354 | 0.334 |
+| Proxifier | 0.0 | 0.045 | 0.084 | 0.106 | 0.09 |
+| Thunderbird | 0.313 | 0.006 | 0.401 | 0.519 | 0.614 |
 
 
 ### Wrong predictions by category
 
-|  | drain | base_zeroshot | base_fewshot | ft_r16 |
-|---|---|---|---|---|
-| format | 7 | 2278 | 1190 | 41 |
-| hallucinated | 0 | 664 | 42 | 91 |
-| under-generalised | 1400 | 398 | 898 | 1185 |
-| over-generalised | 1812 | 69 | 910 | 1241 |
-| other | 620 | 26 | 150 | 304 |
+|  | drain | base_zeroshot | base_fewshot | ft_r16 | ft_r16_cap10 |
+|---|---|---|---|---|---|
+| format | 7 | 2278 | 1190 | 41 | 30 |
+| hallucinated | 0 | 664 | 42 | 91 | 447 |
+| under-generalised | 1400 | 398 | 898 | 1185 | 1028 |
+| over-generalised | 1812 | 69 | 910 | 1241 | 1188 |
+| other | 620 | 26 | 150 | 304 | 162 |
 
 
 ### ft_r16 vs base_fewshot: fixed 424, broke 96 of 4128 lines
@@ -157,29 +157,29 @@
 
 ### PA per system (line-level, not the macro average)
 
-| system | drain | base_zeroshot | base_fewshot | ft_r16 |
-|---|---|---|---|---|
-| Apache | 0.03 | 0.939 | 1.0 | 1.0 |
-| BGL | 0.775 | 0.264 | 0.901 | 1.0 |
-| HDFS | 0.032 | 0.0 | 0.014 | 0.619 |
-| HPC | 0.23 | 0.0 | 0.148 | 0.197 |
-| Hadoop | 0.301 | 0.072 | 0.735 | 0.783 |
-| HealthApp | 0.022 | 0.003 | 0.363 | 0.613 |
-| Linux | 0.816 | 0.0 | 0.737 | 0.842 |
-| OpenSSH | 0.878 | 0.0 | 0.962 | 0.833 |
-| Spark | 0.132 | 0.57 | 0.572 | 0.693 |
-| Zookeeper | 0.059 | 0.282 | 0.565 | 0.906 |
+| system | drain | base_zeroshot | base_fewshot | ft_r16 | ft_r16_cap10 |
+|---|---|---|---|---|---|
+| Apache | 0.03 | 0.939 | 1.0 | 1.0 | 1.0 |
+| BGL | 0.775 | 0.264 | 0.901 | 1.0 | 0.995 |
+| HDFS | 0.032 | 0.0 | 0.014 | 0.619 | 0.499 |
+| HPC | 0.23 | 0.0 | 0.148 | 0.197 | 0.262 |
+| Hadoop | 0.301 | 0.072 | 0.735 | 0.783 | 0.783 |
+| HealthApp | 0.022 | 0.003 | 0.363 | 0.613 | 0.613 |
+| Linux | 0.816 | 0.0 | 0.737 | 0.842 | 0.816 |
+| OpenSSH | 0.878 | 0.0 | 0.962 | 0.833 | 0.885 |
+| Spark | 0.132 | 0.57 | 0.572 | 0.693 | 0.739 |
+| Zookeeper | 0.059 | 0.282 | 0.565 | 0.906 | 0.894 |
 
 
 ### Wrong predictions by category
 
-|  | drain | base_zeroshot | base_fewshot | ft_r16 |
-|---|---|---|---|---|
-| format | 0 | 1034 | 954 | 0 |
-| hallucinated | 0 | 534 | 23 | 13 |
-| under-generalised | 958 | 359 | 167 | 268 |
-| over-generalised | 426 | 49 | 53 | 316 |
-| other | 630 | 57 | 217 | 172 |
+|  | drain | base_zeroshot | base_fewshot | ft_r16 | ft_r16_cap10 |
+|---|---|---|---|---|---|
+| format | 0 | 1034 | 954 | 0 | 0 |
+| hallucinated | 0 | 534 | 23 | 13 | 0 |
+| under-generalised | 958 | 359 | 167 | 268 | 338 |
+| over-generalised | 426 | 49 | 53 | 316 | 298 |
+| other | 630 | 57 | 217 | 172 | 172 |
 
 
 ### ft_r16 vs base_fewshot: fixed 675, broke 30 of 2480 lines
@@ -270,26 +270,26 @@
 
 ### PA per system (line-level, not the macro average)
 
-| system | drain | base_zeroshot | base_fewshot | ft_r16 |
-|---|---|---|---|---|
-| Docker | 0.417 | 0.25 | 0.25 | 0.75 |
-| Kafka | 0.375 | 0.125 | 0.438 | 0.562 |
-| Nginx | 0.273 | 0.0 | 0.455 | 0.364 |
-| OpenSearch | 0.5 | 0.0 | 0.667 | 0.5 |
-| PostgreSQL | 0.3 | 0.0 | 0.4 | 0.5 |
-| Redis | 0.917 | 0.0 | 0.75 | 1.0 |
-| kubelet | 0.364 | 0.0 | 0.273 | 0.182 |
+| system | drain | base_zeroshot | base_fewshot | ft_r16 | ft_r16_cap10 |
+|---|---|---|---|---|---|
+| Docker | 0.417 | 0.25 | 0.25 | 0.75 | 0.75 |
+| Kafka | 0.375 | 0.125 | 0.438 | 0.562 | 0.625 |
+| Nginx | 0.273 | 0.0 | 0.455 | 0.364 | 0.545 |
+| OpenSearch | 0.5 | 0.0 | 0.667 | 0.5 | 0.583 |
+| PostgreSQL | 0.3 | 0.0 | 0.4 | 0.5 | 0.6 |
+| Redis | 0.917 | 0.0 | 0.75 | 1.0 | 1.0 |
+| kubelet | 0.364 | 0.0 | 0.273 | 0.182 | 0.182 |
 
 
 ### Wrong predictions by category
 
-|  | drain | base_zeroshot | base_fewshot | ft_r16 |
-|---|---|---|---|---|
-| format | 0 | 36 | 22 | 3 |
-| hallucinated | 0 | 36 | 6 | 1 |
-| under-generalised | 32 | 2 | 7 | 15 |
-| over-generalised | 7 | 4 | 6 | 10 |
-| other | 7 | 1 | 4 | 8 |
+|  | drain | base_zeroshot | base_fewshot | ft_r16 | ft_r16_cap10 |
+|---|---|---|---|---|---|
+| format | 0 | 36 | 22 | 3 | 1 |
+| hallucinated | 0 | 36 | 6 | 1 | 1 |
+| under-generalised | 32 | 2 | 7 | 15 | 14 |
+| over-generalised | 7 | 4 | 6 | 10 | 11 |
+| other | 7 | 1 | 4 | 8 | 5 |
 
 
 ### ft_r16 vs base_fewshot: fixed 17, broke 9 of 84 lines

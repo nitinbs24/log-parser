@@ -13,7 +13,7 @@ import pandas as pd
 
 from third_party.loghub2_eval.post_process import post_process
 
-METHODS = ["drain", "base_zeroshot", "base_fewshot", "ft_r16"]
+METHODS = ["drain", "base_zeroshot", "base_fewshot", "ft_r16", "ft_r16_cap10"]
 SPLITS = ["test_heldout", "test_template_disjoint", "handcrafted"]
 CATEGORIES = ["format", "hallucinated", "under-generalised", "over-generalised", "other"]
 BASE, FT = "base_fewshot", "ft_r16"
